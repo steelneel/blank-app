@@ -3,49 +3,81 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Function to calculate deflection
-def calculate_deflection(r, L, F, E):
-    I = (np.pi / 4) * (r**4)  # Moment of inertia
-    return (F * L**3) / (3 * E * I)
+def calculate_deflection(r, L, a, f, k_c, E):
+    """
+    Calculate tool deflection based on machining parameters.
+    r: Tool radius (in)
+    L: Tool overhang length (in)
+    a: Depth of cut (in)
+    f: Feed rate (in/rev)
+    k_c: Cutting force coefficient (psi)
+    E: Modulus of elasticity (psi)
+    """
+    # Cutting force
+    F_c = k_c * a * f
+    # Moment of inertia
+    I = (np.pi / 4) * (r**4)
+    # Deflection
+    delta = (F_c * L**3) / (3 * E * I)
+    return F_c, delta
 
-# Cutting force coefficients for different materials
-material_kc = {
-    "Aluminum": 50000,
-    "Medium Carbon Steel": 200000,
-    "Hardened Steel": 300000,
-    "Titanium Alloys": 400000,
-    "Bearing Bronzes": 80000,  # Added Bearing Bronzes
+# Metal and tool material properties dictionary
+metal_data = {
+    "Aluminum": {"k_c": 50000, "E": 10e6, "Machinability": "Excellent", "Uses": "Aircraft parts, automotive components"},
+    "Medium Carbon Steel": {"k_c": 200000, "E": 30e6, "Machinability": "Good", "Uses": "Shafts, gears, bolts"},
+    "Hardened Steel": {"k_c": 300000, "E": 30e6, "Machinability": "Poor", "Uses": "Tooling, dies, cutting edges"},
+    "Titanium Alloys": {"k_c": 400000, "E": 16e6, "Machinability": "Fair", "Uses": "Aerospace, medical implants"},
+    "Bearing Bronzes": {"k_c": 80000, "E": 12e6, "Machinability": "Excellent", "Uses": "Bearings, bushings, thrust washers"},
+}
+
+tool_material_data = {
+    "Steel (HSK)": {"E": 30e6, "Description": "Standard steel, widely used in HSK tooling."},
+    "Carbide Bar": {"E": 90e6, "Description": "High-stiffness material for demanding applications."},
 }
 
 # App layout
-st.title("Tool Deflection Optimization App")
+st.title("Enhanced Tool Deflection Optimization App")
 
 # Inputs
 st.sidebar.header("Input Parameters")
-material = st.sidebar.selectbox("Material", list(material_kc.keys()))
-radius = st.sidebar.slider("Tool Radius (in)", min_value=0.008, max_value=0.062, value=0.031, step=0.001)
-overhang_length = st.sidebar.slider("Overhang Length (in)", min_value=1.0, max_value=6.0, value=4.0, step=0.1)
-depth_of_cut = st.sidebar.slider("Depth of Cut (in)", min_value=0.01, max_value=0.1, value=0.05, step=0.01)
-feed_rate = st.sidebar.slider("Feed Rate (in/rev)", min_value=0.002, max_value=0.02, value=0.01, step=0.001)
-modulus_of_elasticity = 30e6  # Steel (psi)
+material = st.sidebar.selectbox("Workpiece Material", list(metal_data.keys()))
+tool_material = st.sidebar.selectbox("Tool Material", list(tool_material_data.keys()))
+radius = st.sidebar.number_input("Tool Radius (in)", min_value=0.001, max_value=0.5, value=0.031, step=0.001, format="%.3f")
+overhang_length = st.sidebar.number_input("Overhang Length (in)", min_value=0.1, max_value=12.0, value=4.0, step=0.1, format="%.1f")
+depth_of_cut = st.sidebar.number_input("Depth of Cut (in)", min_value=0.001, max_value=1.0, value=0.05, step=0.001, format="%.3f")
+feed_rate = st.sidebar.number_input("Feed Rate (in/rev)", min_value=0.001, max_value=0.1, value=0.01, step=0.001, format="%.3f")
 
-# Select cutting force coefficient based on material
-kc = material_kc[material]
+# Retrieve material and tool properties
+selected_metal = metal_data[material]
+selected_tool_material = tool_material_data[tool_material]
+k_c = selected_metal["k_c"]
+E = selected_tool_material["E"]
 
 # Calculate cutting force and deflection
-cutting_force = kc * depth_of_cut * feed_rate
-deflection = calculate_deflection(radius, overhang_length, cutting_force, modulus_of_elasticity)
+cutting_force, deflection = calculate_deflection(radius, overhang_length, depth_of_cut, feed_rate, k_c, E)
 
-# Display results
+# Display material properties and results
+st.subheader("Material Properties")
+st.write(f"**Selected Material:** {material}")
+st.write(f"**Cutting Force Coefficient (\(k_c\)):** {k_c} psi")
+st.write(f"**Machinability:** {selected_metal['Machinability']}")
+st.write(f"**Typical Uses:** {selected_metal['Uses']}")
+
+st.subheader("Tool Material Properties")
+st.write(f"**Selected Tool Material:** {tool_material}")
+st.write(f"**Modulus of Elasticity (\(E\)):** {E:.1e} psi")
+st.write(f"**Description:** {selected_tool_material['Description']}")
+
 st.subheader("Results")
-st.write(f"Selected Material: {material}")
-st.write(f"Cutting Force Coefficient: {kc} psi")
-st.write(f"Cutting Force: {cutting_force:.2f} lb")
-st.write(f"Deflection: {deflection:.5f} in")
+st.write(f"**Cutting Force:** {cutting_force:.2f} lb")
+st.write(f"**Deflection:** {deflection:.5f} in")
 
 # Graph: Deflection vs Feed Rate for Fixed Radius
 st.subheader("Deflection vs Feed Rate")
 feed_rates = np.linspace(0.002, 0.02, 100)
-deflections = [calculate_deflection(radius, overhang_length, kc * depth_of_cut * f, modulus_of_elasticity) for f in feed_rates]
+deflections = [
+    calculate_deflection(radius, overhang_length, depth_of_cut, f, k_c, E)[1] for f in feed_rates
+]
 
 fig, ax = plt.subplots()
 ax.plot(feed_rates, deflections, label=f"Material: {material}")
